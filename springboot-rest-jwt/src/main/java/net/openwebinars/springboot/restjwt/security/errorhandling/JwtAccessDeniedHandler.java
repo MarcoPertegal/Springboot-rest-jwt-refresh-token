@@ -1,5 +1,6 @@
 package net.openwebinars.springboot.restjwt.security.errorhandling;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,10 +32,10 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
        response.getWriter()
                .println(objectMapper.writeValueAsString(
                        Map.of("error", accessDeniedException.getMessage())
-               ));
+               )); */
 
 
-        */
+
 
         resolver.resolveException(request, response, null, accessDeniedException);
 

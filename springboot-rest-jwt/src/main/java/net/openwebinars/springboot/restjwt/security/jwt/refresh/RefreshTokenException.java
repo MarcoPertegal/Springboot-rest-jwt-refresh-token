@@ -1,4 +1,9 @@
 package net.openwebinars.springboot.restjwt.security.jwt.refresh;
 
-public class RefreshTokenException {
+import net.openwebinars.springboot.restjwt.security.errorhandling.JwtTokenException;
+
+public class RefreshTokenException extends JwtTokenException {
+    public RefreshTokenException(String msg) {
+        super((msg));
+    }
 }
