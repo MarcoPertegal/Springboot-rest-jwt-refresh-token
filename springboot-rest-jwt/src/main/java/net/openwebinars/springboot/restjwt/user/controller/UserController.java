@@ -2,6 +2,10 @@ package net.openwebinars.springboot.restjwt.user.controller;
 
 import lombok.RequiredArgsConstructor;
 import net.openwebinars.springboot.restjwt.security.jwt.access.JwtProvider;
+import net.openwebinars.springboot.restjwt.security.jwt.refresh.RefreshToken;
+import net.openwebinars.springboot.restjwt.security.jwt.refresh.RefreshTokenException;
+import net.openwebinars.springboot.restjwt.security.jwt.refresh.RefreshTokenRequest;
+import net.openwebinars.springboot.restjwt.security.jwt.refresh.RefreshTokenService;
 import net.openwebinars.springboot.restjwt.user.dto.*;
 import net.openwebinars.springboot.restjwt.user.model.User;
 import net.openwebinars.springboot.restjwt.user.service.UserService;
@@ -25,6 +29,7 @@ public class UserController {
     private final UserService userService;
     private final AuthenticationManager authManager;
     private final JwtProvider jwtProvider;
+    private final RefreshTokenService refreshTokenService;
 
 
     @PostMapping("/auth/register")
@@ -48,7 +53,7 @@ public class UserController {
     public ResponseEntity<JwtUserResponse> login(@RequestBody LoginRequest loginRequest) {
 
         // Realizamos la autenticación
-
+        //autenticamos al usuario
         Authentication authentication =
                 authManager.authenticate(
                         new UsernamePasswordAuthenticationToken(
@@ -58,16 +63,24 @@ public class UserController {
                 );
 
         // Una vez realizada, la guardamos en el contexto de seguridad
+        //lo almacenamos en e contexto de seguridad
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Devolvemos una respuesta adecuada
+        //generamos el token
         String token = jwtProvider.generateToken(authentication);
 
+        //obtenemos el usuario del principal
         User user = (User) authentication.getPrincipal();
 
+        //eliminamos algun toquen de acceso caducado de usuario que se está loggeando si lo tuviese
+        refreshTokenService.deleteByUser(user);
 
+        //creamos el refresh token
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+
+        //añadimos el tokem de refresco como string llamando al atributo token de la clase
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(JwtUserResponse.of(user, token));
+                .body(JwtUserResponse.of(user, token, refreshToken.getToken()));
 
 
     }
@@ -107,6 +120,35 @@ public class UserController {
     public ResponseEntity<UserResponse> getLoggedUser(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(UserResponse.fromUser(user));
     }
+
+    @PostMapping("/refreshtoken")
+    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest){
+        //recibimos token de refresco
+        String refreshToken = refreshTokenRequest.getRefreshToken();
+
+        //buscar entidad a partir del string verificarla si la conseguimos verificar obtener el usuario
+        //y generar nueva pareja de token y devolverlos
+        //buscamos el token de refresco, si no lo encontramos devolvemos excepcion
+        //si lo encontramos lo verificamos del token verificado obtenemos el usuario a partir
+        //del user generamos el token de acceso, eliminamos token de refresco antiguo, generamos uno nuevo
+        //y devolvemos la nueva pareja
+        return refreshTokenService.findByToken(refreshToken)
+                .map(refreshTokenService::verify)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    //vamos a devolver la respuesta de la pareja de token
+                    String token = jwtProvider.generateToken(user);
+                    refreshTokenService.deleteByUser(user);
+                    RefreshToken refreshToken2 = refreshTokenService.createRefreshToken(user);
+                    return ResponseEntity.status(HttpStatus.CREATED)
+                            .body(JwtUserResponse.builder()
+                                    .token(token)
+                                    .refreshToken(refreshToken2.getToken())
+                                    .build()
+                            );
+                }).orElseThrow(() -> new RefreshTokenException("Refresh token not found"));
+    }
+
 
 
 }
